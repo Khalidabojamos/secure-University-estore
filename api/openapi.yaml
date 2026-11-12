@@ -1,0 +1,177 @@
+openapi: 3.0.0
+info:
+  title: Secure University e-Store API
+  version: "1.0.0"
+  description: REST API documentation for the Secure University e-Store (Project M1 Draft)
+servers:
+  - url: http://shop.g16.sec.lab/api
+    description: Local development server (Group 16)
+
+paths:
+  # --- Authentication Endpoints ---
+  /auth/login:
+    post:
+      summary: Start a user session
+      description: Authenticates user credentials (bcrypt/Argon2) and returns a secure session cookie.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful, session cookie set.
+        '401':
+          description: Invalid credentials or account locked.
+
+  /auth/logout:
+    post:
+      summary: End the current session
+      description: Destroys the session on the server side.
+      responses:
+        '200':
+          description: Successfully logged out.
+
+  /auth/password-reset:
+    post:
+      summary: Request a password reset link
+      description: Generates a single-use expiring token sent via Mailpit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: If the email exists, a reset link has been sent.
+
+  # --- Product Catalogue ---
+  /products:
+    get:
+      summary: Search and list products
+      description: Public endpoint to browse the product catalogue with search and filter options.
+      parameters:
+        - name: q
+          in: query
+          description: Search keyword
+          required: false
+          schema:
+            type: string
+        - name: sort
+          in: query
+          description: Sort field (e.g., price, date)
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of products.
+
+  # --- Cart & Orders ---
+  /cart/items:
+    post:
+      summary: Add an item to the cart
+      description: Customer action to add products to the shopping cart.
+      responses:
+        '200':
+          description: Item added successfully.
+
+  /orders:
+    post:
+      summary: Create an order
+      description: Creates an order from the cart; the server computes the total price.
+      responses:
+        '201':
+          description: Order created in PENDING_PAYMENT state, redirecting to PayLab.
+
+  /orders/{id}:
+    get:
+      summary: Read a specific order
+      description: Customer (owner) views their own order details and live status.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Order details.
+        '403':
+          description: Access denied (IDOR protection).
+
+  # --- Payment Webhook ---
+  /payments/webhook:
+    post:
+      summary: PayLab signed payment confirmation webhook
+      description: Asynchronous payment confirmation from PayLab. Verified via HMAC-SHA256 signature.
+      responses:
+        '200':
+          description: Webhook processed successfully, order marked PAID.
+        '400':
+          description: Invalid signature, timestamp, or event ID.
+
+  # --- Vendor Operations ---
+  /vendor/products:
+    post:
+      summary: Create or edit own products
+      description: Approved vendor manages their own product catalogue.
+      responses:
+        '201':
+          description: Product created successfully.
+
+  /vendor/products/import:
+    post:
+      summary: Bulk catalogue import
+      description: Vendor imports products via XML or CSV files (with XXE protection).
+      responses:
+        '200':
+          description: Catalogue imported successfully.
+
+  /vendor/products/{id}/image-from-url:
+    post:
+      summary: Fetch product image from URL
+      description: Vendor provides a URL to fetch product images (with SSRF protection).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Image fetched and saved.
+
+  # --- Admin & Auditor Operations ---
+  /admin/refunds:
+    post:
+      summary: Issue a documented refund
+      description: Store Admin issues a refund with a reason and audit record.
+      responses:
+        '200':
+          description: Refund processed.
+
+  /auditor/events:
+    get:
+      summary: Read security and audit events
+      description: Security Auditor read-only view of the logs.
+      responses:
+        '200':
+          description: List of security and audit events.
